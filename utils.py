@@ -22,6 +22,10 @@ import copy
 from IPython import display
 import time
 
+
+from PIL import Image
+import imageio
+
 ## TO-DO
 #- Add legends
 #- Add plot on RHS that shows progression of number of infected individuals (lineplot)
@@ -41,6 +45,9 @@ class MJDM:
         
         # Adding nodes to graph
         self.graph.add_nodes_from(range(self.n+1))
+        
+        # Adding edges initializatio flag
+        self.edge_initialization_flag = 0
         
         # Setting time period attribute
         self.timeperiod = 0
@@ -69,13 +76,17 @@ class MJDM:
         nx.set_node_attributes(self.graph, time_since_recovered)
 
         
-    def infect(self,no_infected,infection_period,recovery_period):
+    def infect(self,p_infection,no_infected,infection_period,recovery_period):
         """
         This function defines the disease in terms of how long a person
         is infected for and how long they stay in the recovered state for 
         before becoming susceptible again.
         """
-        
+        # Defining the disease in terms of what the probability of infection is,
+        # given that two members of society meet each other with one person
+        # being susceptible and the other being infected.
+        self.p_infection = p_infection
+
         # Defining the disease in terms of how long a person is infected for
         # and how long they stay in recovered state before becoming 
         # susceptible again
@@ -95,15 +106,20 @@ class MJDM:
             # Start infection timer
             self.graph.nodes[node]['time_since_infection'] += 1
                 
-    def assign_community(self, no_communities, c_intra : float, c_inter : float):
+    def assign_community(self, no_communities, c_intra : float, c_inter : float, sociality : float):
         """
         This function assigns the probabilities of connecting with someone from
         inside your community and someone from the outside of your community.
+
+        Additionally, it sets the community structure so that we can use it for
+        disease propagation.
         """
         
         # Assigning to model, for later potential use..
+        self.p_intra = c_intra / (len(self.graph.nodes) / no_communities) #approx
         self.c_intra = c_intra
-        self.c_inter = c_inter 
+        self.p_inter = float(c_inter / len(self.graph.nodes))
+        self.sociality = sociality
         
         # Assigning the number of communities
         self.no_communities = no_communities
@@ -113,39 +129,62 @@ class MJDM:
         for node in self.graph.nodes:
             # Sample a number from the list of communities
             self.graph.nodes[node]['community'] = int(random.sample(self.communities,1)[0])
-        
-            
+    
+        # If we have not yet initialized any community edges, do so now.
+        if self.edge_initialization_flag == 0:
+
+            # Accounting..
+            self.edge_initialization_flag = 1
+
+            # Creating INTRA-COMMUNITY, create community structure
+            for community in self.communities:
+                # Getting nodes that belong to that community
+                nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community]
+                
+                # Creating potential set of edges
+                potential_edges = list(combinations(nodes,r=2))
+                
+                # Establishing the right community probabilities
+                intra_community_p = c_intra / (len(nodes) - 1)
+
+                # Assigning with c_intra probability nodes within community
+                # and saving these edges for later sampling for disease propagation
+
+                self.edges = [edge for edge in potential_edges if np.random.uniform(0,1,1) < intra_community_p]
+
+
+            if len(self.communities) > 1:
+                inter_community_connections = list(combinations(self.communities,r=2))
+                
+                # Creating INTER-COMMUNITY, connect nodes with probability c_inter
+                for community_pair in inter_community_connections:
+                    nodes_1 = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community_pair[0]]
+                    nodes_2 = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community_pair[1]]
+                    
+                    # Getting potential edges
+                    potential_inter_edges = list(itertools.product(nodes_1,nodes_2))
+                    
+                    # Assigning edges with probability c_inter.
+                    self.edges += [edge for edge in potential_inter_edges if np.random.uniform(0,1,1) < self.p_inter]
+
         
     def advance_disease(self):
         """
-        This function advances the disease state by 1 time period. Trying out stuff!
+        This function advances the disease state by 1 time period. 
+        In its current form, the function:
+        
+        1) Samples a subset of these edges, and activates them.
+        2) Propagates disease along these edges if they are in contact, 
+           w.p. self.p_infection
         """
         
-        
-        # Start by clearing all the edges in the graph
+        # Start by clearing all the edges in the graph from the grapher function.
+        # This is done because of the graphing structure.
         self.graph.remove_edges_from(list(self.graph.edges()))
         
-        # Creating INTRA-COMMUNITY, create community structure
-        for community in self.communities:
-            # Getting nodes that belong to that community
-            nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community]
             
-            # Creating potential set of edges
-            potential_edges = list(combinations(nodes,r=2))
-            
-            #Assigning with c_intra probability nodes within community
-            self.graph.add_edges_from([edge for edge in potential_edges if np.random.uniform(0,1,1) < self.c_intra])
-            
-        # Creating INTER-COMMUNITY, connect nodes with probability c_inter
-        if len(self.communities) > 1:
-            inter_community_connections = list(combinations(self.communities,r=2))
-            
-            for community_pair in inter_community_connections:
-                nodes_1 = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community_pair[0]]
-                nodes_2 = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community_pair[1]]
-                
-                potential_inter_edges = list(itertools.product(nodes_1,nodes_2))
-                self.graph.add_edges_from([edge for edge in potential_inter_edges if np.random.uniform(0,1,1) < self.c_inter])
+        # Sampling from our edges that we have, with probability p_
+        self.graph.add_edges_from([edge for edge in self.edges if np.random.uniform(0,1,1) < self.sociality])
         
         # Identifying what nodes are already infected
         infected_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['infected'] == 1]
@@ -155,7 +194,7 @@ class MJDM:
             self.graph.nodes[node]['time_since_infection'] += 1
             
             # Passing to recovery period if some have been infected
-            if self.graph.nodes[node]['time_since_infection'] >= self.infection_period:
+            if self.graph.nodes[node]['time_since_infection'] > self.infection_period:
                 # Current state
                 self.graph.nodes[node]['susceptible'] = 0
                 self.graph.nodes[node]['infected'] = 0
@@ -171,7 +210,7 @@ class MJDM:
             self.graph.nodes[node]['time_since_recovered'] += 1
             
             # Passing to susceptibility those that have exceeded self.recovery_period
-            if self.graph.nodes[node]['time_since_recovered'] >= self.recovery_period:
+            if self.graph.nodes[node]['time_since_recovered'] > self.recovery_period:
                
                 # Current state
                 self.graph.nodes[node]['susceptible'] = 1
@@ -189,10 +228,13 @@ class MJDM:
         susceptible_nodes = [node for node in self.graph.nodes if (self.graph.nodes[node]['susceptible'] == 1)\
                                                               and (self.graph.nodes[node]['recovered'] == 0)]
         
+        # Infecting edges, remember that we have the probability of infection to account for too!
         infecting_edges = [edge for edge in self.graph.edges \
                            if (edge[0] in infected_nodes and edge[1] in susceptible_nodes) \
-                           or (edge[1] in infected_nodes and edge[0] in susceptible_nodes)
+                           or (edge[1] in infected_nodes and edge[0] in susceptible_nodes) \
+                           and (np.random.uniform(0,1,1) < self.p_infection)
                                                                   ]
+
         # set infecting node color to different color, and pass this
         new_infected_nodes = []
         for edge in infecting_edges:
@@ -293,7 +335,7 @@ class MJDM:
         fig, ax = plt.subplots(1,1, figsize=(15,15))
         no_infected = sum(nx.get_node_attributes(self.graph,'infected').values())
         fig.suptitle(f"Village contagion, time-period {self.timeperiod}, {no_infected} infected villagers.", fontsize = 30)
-        text = f"p-intra: {round(self.c_intra,6)}, p-inter: {round(self.c_inter,6)} "
+        text = f"p-intra: {round(self.p_intra,6)}, p-inter: {round(self.p_inter,6)}, \n sociality: {self.sociality}, p_infection: {self.p_infection}"
         fig.text(.5, .05, text, ha='center', FontSize = 20)
 
         if infecting_edges == 0:
@@ -342,7 +384,30 @@ class MJDM:
                         ax = ax)
             
         if iteration != -1:
-            path = os.getcwd()
-            figpath = os.path.join(path,'/for_gif/{iteration}.png')
-            # plt.savefig(f"/home/dante/networks/final_project/for_gif/{iteration}.png")
+            plt.savefig(os.path.join(os.getcwd(),f"for_gif/{iteration}.png"))
+            # plt.show()
         plt.close(fig)
+
+
+def to_gif():
+
+    images = []
+    path = os.path.join(os.getcwd(),'for_gif/')
+    filenames = os.listdir(path)
+    print(filenames)
+    filenames.sort(key = lambda x: int(x.split(".")[0]))
+
+    for filename in filenames:
+        newname = filename.split(".")[0]+".JPEG"
+        im = Image.open(path+filename)
+        rgb_im = im.convert('RGB')
+        rgb_im.save(path+newname)
+
+    filenames = os.listdir(path)
+    filenames = [filename for filename in filenames if 'JPEG' in filename]
+    filenames.sort(key = lambda x: int(x.split(".")[0]))
+
+    for filename in filenames:
+        images.append(imageio.imread(path+filename))
+        imageio.mimsave(os.path.join(os.getcwd(), 'movie.gif'), images, duration = 3)
+

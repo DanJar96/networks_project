@@ -118,7 +118,7 @@ class MJDM:
         
     def advance_disease(self):
         """
-        This function advances the disease state by 1 time period.
+        This function advances the disease state by 1 time period. Trying out stuff!
         """
         
         

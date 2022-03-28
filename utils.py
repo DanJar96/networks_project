@@ -93,6 +93,16 @@ class MJDM:
         self.infection_period = infection_period
         self.recovery_period = recovery_period
         
+
+        # Creating node status history accounting lists
+        self.nodehistory = {}
+        for node in self.graph.nodes:
+            self.nodehistory[node] = {}
+            self.nodehistory[node]['susceptible'] = []
+            self.nodehistory[node]['infected'] = []
+            self.nodehistory[node]['recovered'] = []
+
+
         # Randomly sampling two nodes that will become infected
         infected_nodes = random.sample(list(self.graph.nodes),no_infected)
         
@@ -105,6 +115,13 @@ class MJDM:
             
             # Start infection timer
             self.graph.nodes[node]['time_since_infection'] += 1
+
+        # Recording current states...
+        for node in self.graph.nodes:
+            self.nodehistory[node]['susceptible'].append(self.graph.nodes[node]['susceptible'])
+            self.nodehistory[node]['infected'].append(self.graph.nodes[node]['infected'])
+            self.nodehistory[node]['recovered'].append(self.graph.nodes[node]['recovered'])
+
                 
     def assign_community(self, no_communities, c_intra : float, c_inter : float, sociality : float):
         """
@@ -251,7 +268,13 @@ class MJDM:
             
             # Starting infection timer
             self.graph.nodes[node]['time_since_infection'] += 1
-                     
+
+        # Updating node status history
+        for node in self.graph.nodes:
+            self.nodehistory[node]['susceptible'].append(self.graph.nodes[node]['susceptible'])
+            self.nodehistory[node]['infected'].append(self.graph.nodes[node]['infected'])
+            self.nodehistory[node]['recovered'].append(self.graph.nodes[node]['recovered'])
+
         self.timeperiod += 1  
      
         return infecting_edges
@@ -411,3 +434,58 @@ def to_gif():
         images.append(imageio.imread(path+filename))
         imageio.mimsave(os.path.join(os.getcwd(), 'movie.gif'), images, duration = 3)
 
+
+
+##############################################
+# ALL FUNCTIONS BELOW ARE NOT CLASS-SPECIFIC!#
+##############################################
+
+def simulation(parameter_combinations,no_simulations,time_periods):
+    """
+    This function takes in all combinations of parameters.
+
+    It then runs simulations of all of these parameters.
+
+    In the process, it records everything into a dict,
+    which can be saved as a dataframe.
+
+    Input:
+    n_nodes,
+    no_communities,
+    intra_cs,
+    inter_cs,
+    socialities,
+    n_infecteds,
+    p_infections,
+    infection_periods,
+    recovery_periods
+
+    """
+    nodehistory = {}
+    combinations = len(parameter_combinations)
+    for idx,comb in enumerate(parameter_combinations):
+        nodehistory[str(comb)] = {}
+
+        for run in range(no_simulations):
+            # Getting model
+            model = MJDM(comb[0])
+
+            # Assigning community structure
+            model.assign_community(no_communities = comb[1], c_intra = comb[2], c_inter = comb[3], sociality = comb[4])
+
+            # Infecting nodes
+            model.infect(p_infection = comb[6], no_infected = comb[5], infection_period = comb[7], recovery_period = comb[8])
+
+            # Getting fixed positions in case of wanting to visualize
+            # model.get_fixed_positions()
+
+            # Advancing model as instructed
+            for t in range(time_periods):
+                infecting_edges = model.advance_disease()
+                if (len(infecting_edges) == 0) & (sum(nx.get_node_attributes(model.graph,'infected').values()) == 0):
+                    break
+
+            nodehistory[str(comb)][t] = model.nodehistory
+
+        print(f"Finished round number {idx+1} out of {combinations}!")
+    return nodehistory

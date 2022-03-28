@@ -342,5 +342,7 @@ class MJDM:
                         ax = ax)
             
         if iteration != -1:
-            plt.savefig(f"/home/dante/networks/final_project/for_gif/{iteration}.png")
+            path = os.getcwd()
+            figpath = os.path.join(path,'/for_gif/{iteration}.png')
+            # plt.savefig(f"/home/dante/networks/final_project/for_gif/{iteration}.png")
         plt.close(fig)

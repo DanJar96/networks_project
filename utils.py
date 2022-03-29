@@ -17,10 +17,11 @@ from tqdm import tqdm
 from pathlib import Path
 import math
 
-from itertools import count, permutations, combinations
+from itertools import count, permutations, combinations, chain
 import copy
 from IPython import display
 import time
+from varname.helpers import Wrapper
 
 
 from PIL import Image
@@ -96,11 +97,16 @@ class MJDM:
 
         # Creating node status history accounting lists
         self.nodehistory = {}
-        for node in self.graph.nodes:
-            self.nodehistory[node] = {}
-            self.nodehistory[node]['susceptible'] = []
-            self.nodehistory[node]['infected'] = []
-            self.nodehistory[node]['recovered'] = []
+        self.nodehistory['susceptible'] = []
+        self.nodehistory['infected'] = []
+        self.nodehistory['recovered'] = []
+
+        
+        # for node in self.graph.nodes:
+        #     self.nodehistory[node] = {}
+        #     self.nodehistory[node]['susceptible'] = []
+        #     self.nodehistory[node]['infected'] = []
+        #     self.nodehistory[node]['recovered'] = []
 
 
         # Randomly sampling two nodes that will become infected
@@ -117,13 +123,17 @@ class MJDM:
             self.graph.nodes[node]['time_since_infection'] += 1
 
         # Recording current states...
-        for node in self.graph.nodes:
-            self.nodehistory[node]['susceptible'].append(self.graph.nodes[node]['susceptible'])
-            self.nodehistory[node]['infected'].append(self.graph.nodes[node]['infected'])
-            self.nodehistory[node]['recovered'].append(self.graph.nodes[node]['recovered'])
+        self.nodehistory['susceptible'].append(sum(nx.get_node_attributes(self.graph,'susceptible').values())/len(self.graph.nodes))
+        self.nodehistory['infected'].append(sum(nx.get_node_attributes(self.graph,'infected').values())/len(self.graph.nodes))
+        self.nodehistory['recovered'].append(sum(nx.get_node_attributes(self.graph,'recovered').values())/len(self.graph.nodes))
+
+        # for node in self.graph.nodes:
+        #     self.nodehistory[node]['susceptible'].append(self.graph.nodes[node]['susceptible'])
+        #     self.nodehistory[node]['infected'].append(self.graph.nodes[node]['infected'])
+        #     self.nodehistory[node]['recovered'].append(self.graph.nodes[node]['recovered'])
 
                 
-    def assign_community(self, no_communities, c_intra : float, c_inter : float, sociality : float):
+    def assign_community(self, no_communities, c_intra : float, c_inter : float):
         """
         This function assigns the probabilities of connecting with someone from
         inside your community and someone from the outside of your community.
@@ -136,7 +146,6 @@ class MJDM:
         self.p_intra = c_intra / (len(self.graph.nodes) / no_communities) #approx
         self.c_intra = c_intra
         self.p_inter = float(c_inter / len(self.graph.nodes))
-        self.sociality = sociality
         
         # Assigning the number of communities
         self.no_communities = no_communities
@@ -170,7 +179,7 @@ class MJDM:
                 self.edges = [edge for edge in potential_edges if np.random.uniform(0,1,1) < intra_community_p]
 
 
-            if len(self.communities) > 1:
+            if self.no_communities > 1:
                 inter_community_connections = list(combinations(self.communities,r=2))
                 
                 # Creating INTER-COMMUNITY, connect nodes with probability c_inter
@@ -185,7 +194,7 @@ class MJDM:
                     self.edges += [edge for edge in potential_inter_edges if np.random.uniform(0,1,1) < self.p_inter]
 
         
-    def advance_disease(self):
+    def advance_disease(self,  percolation : float):
         """
         This function advances the disease state by 1 time period. 
         In its current form, the function:
@@ -194,14 +203,14 @@ class MJDM:
         2) Propagates disease along these edges if they are in contact, 
            w.p. self.p_infection
         """
-        
+        self.percolation = percolation
         # Start by clearing all the edges in the graph from the grapher function.
         # This is done because of the graphing structure.
         self.graph.remove_edges_from(list(self.graph.edges()))
         
             
-        # Sampling from our edges that we have, with probability p_
-        self.graph.add_edges_from([edge for edge in self.edges if np.random.uniform(0,1,1) < self.sociality])
+        # Sampling from our edges that we have, with probability percolation
+        self.graph.add_edges_from(random.sample(list(self.graph.edges),int(self.percolation * len(self.graph.edges))))
         
         # Identifying what nodes are already infected
         infected_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['infected'] == 1]
@@ -270,10 +279,16 @@ class MJDM:
             self.graph.nodes[node]['time_since_infection'] += 1
 
         # Updating node status history
-        for node in self.graph.nodes:
-            self.nodehistory[node]['susceptible'].append(self.graph.nodes[node]['susceptible'])
-            self.nodehistory[node]['infected'].append(self.graph.nodes[node]['infected'])
-            self.nodehistory[node]['recovered'].append(self.graph.nodes[node]['recovered'])
+
+        self.nodehistory['susceptible'].append(sum(nx.get_node_attributes(self.graph,'susceptible').values())/len(self.graph.nodes))
+        self.nodehistory['infected'].append(sum(nx.get_node_attributes(self.graph,'infected').values())/len(self.graph.nodes))
+        self.nodehistory['recovered'].append(sum(nx.get_node_attributes(self.graph,'recovered').values())/len(self.graph.nodes))        
+
+
+        # for node in self.graph.nodes:
+        #     self.nodehistory[node]['susceptible'].append(self.graph.nodes[node]['susceptible'])
+        #     self.nodehistory[node]['infected'].append(self.graph.nodes[node]['infected'])
+        #     self.nodehistory[node]['recovered'].append(self.graph.nodes[node]['recovered'])
 
         self.timeperiod += 1  
      
@@ -440,6 +455,56 @@ def to_gif():
 # ALL FUNCTIONS BELOW ARE NOT CLASS-SPECIFIC!#
 ##############################################
 
+
+def get_model1(n):
+    """
+    Returns a model with parameters:
+    no_communities = 1
+    c_intra = 0.05 * n (not used because no_communities = 1)
+    c_inter = 0.05 * n
+
+    """
+    model  = MJDM(n)
+    model.assign_community(no_communities = 1, c_intra = 0.05, c_inter = 0.05*n)
+    return model
+
+def get_model2(n):
+    """
+    Returns a model with parameters:
+    no_communities = 1
+    c_intra = 0.05 * n (not used because no_communities = 1)
+    c_inter = 0.05 * n
+
+    """
+    model  = MJDM(n)
+    model.assign_community(no_communities = 1, c_intra = 0.05, c_inter = 0.05*n)
+    return model  
+
+def get_model3(n):
+    """
+    Returns a model with parameters:
+    no_communities = 1
+    c_intra = 0.05 * n (not used because no_communities = 1)
+    c_inter = 0.05 * n
+
+    """
+    model  = MJDM(n)
+    model.assign_community(no_communities = 1, c_intra = 0.2, c_inter = 0.025*n)
+    return model
+
+def get_model4(n):
+    """
+    Returns a model with parameters:
+    no_communities = 1
+    c_intra = 0.05 * n (not used because no_communities = 1)
+    c_inter = 0.05 * n
+
+    """
+    model  = MJDM(n)
+    model.assign_community(no_communities = 1, c_intra = 0.2, c_inter = 0.1*n)
+    return model
+
+
 def simulation(parameter_combinations,no_simulations,time_periods):
     """
     This function takes in all combinations of parameters.
@@ -449,43 +514,67 @@ def simulation(parameter_combinations,no_simulations,time_periods):
     In the process, it records everything into a dict,
     which can be saved as a dataframe.
 
-    Input:
-    n_nodes,
-    no_communities,
-    intra_cs,
-    inter_cs,
-    socialities,
-    n_infecteds,
+    Input (in parameter_combinations):
+    n_nodes
     p_infections,
+    n_infecteds,
     infection_periods,
-    recovery_periods
+    recovery_periods,
+    percolation,
 
     """
-    nodehistory = {}
+
+    data_dict = {
+        'model_number' : [],
+        'parameter_combination' : [],
+        'simulation_number' : [],
+        'time_period' : [],
+        'susceptible_pct' : [],
+        'infected_pct' : [],
+        'recovered_pct' : []
+    }
+
     combinations = len(parameter_combinations)
+
     for idx,comb in enumerate(parameter_combinations):
-        nodehistory[str(comb)] = {}
+        # Run a simulation for a certain parameter combination across all
+        # four models
 
         for run in range(no_simulations):
-            # Getting model
-            model = MJDM(comb[0])
+            
+            # Getting our models with their community structure
+            model1 = get_model1(comb[0])
+            model2 = get_model2(comb[0])
+            model3 = get_model3(comb[0])
+            model4 = get_model4(comb[0])
+            
+            # Assigning models to list 
+            model_list = [model1,model2,model3,model4]
 
-            # Assigning community structure
-            model.assign_community(no_communities = comb[1], c_intra = comb[2], c_inter = comb[3], sociality = comb[4])
+            # Infecting each model
+            for model_id,model in enumerate(model_list):
+                model.infect(p_infection = comb[0+1],\
+                             no_infected = comb[1+1],\
+                             infection_period = comb[2+1],\
+                             recovery_period = comb[3+1])           
+            
+                for t in range(time_periods):
+                    infecting_edges = model.advance_disease(percolation = comb[4+1])
+                    if (len(infecting_edges) == 0) & (model.nodehistory['infected'][-1] == 0):
+                        break
+            
+                tps = len(model.nodehistory['infected'])
+                data_dict['model_number'].extend([model_id] * tps)
+                data_dict['parameter_combination'].extend([comb] * tps)
+                data_dict['simulation_number'].extend([run] *tps)
+                data_dict['time_period'] += list(range(tps))
+                data_dict['susceptible_pct'] += model.nodehistory['susceptible']
+                data_dict['infected_pct'] += model.nodehistory['infected']
+                data_dict['recovered_pct'] += model.nodehistory['recovered']     
 
-            # Infecting nodes
-            model.infect(p_infection = comb[6], no_infected = comb[5], infection_period = comb[7], recovery_period = comb[8])
-
-            # Getting fixed positions in case of wanting to visualize
-            # model.get_fixed_positions()
-
-            # Advancing model as instructed
-            for t in range(time_periods):
-                infecting_edges = model.advance_disease()
-                if (len(infecting_edges) == 0) & (sum(nx.get_node_attributes(model.graph,'infected').values()) == 0):
-                    break
-
-            nodehistory[str(comb)][t] = model.nodehistory
 
         print(f"Finished round number {idx+1} out of {combinations}!")
-    return nodehistory
+    # Saving the data as a dataframe
+    # df = pd.DataFrame(data_dict)
+
+    return data_dict

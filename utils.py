@@ -512,7 +512,7 @@ def get_model4(n):
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 1, c_intra = 0.2, c_inter = 0.1*n)
+    model.assign_community(no_communities = 2, c_intra = 0.2, c_inter = 0.1*n)
     return model
 
 

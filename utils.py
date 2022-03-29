@@ -174,8 +174,7 @@ class MJDM:
                 potential_edges = list(combinations(nodes,r=2))
                 
                 # Establishing the right community probabilities
-                right_c_intra = c_intra * len(nodes)
-                intra_community_p = right_c_intra / len(nodes)
+                intra_community_p = c_intra / len(nodes)
                 # print(intra_community_p)
 
                 # Assigning with c_intra probability nodes within community
@@ -469,50 +468,56 @@ def to_gif():
 
 def get_model1(n):
     """
-    Returns a model with parameters:
+    model 1 (low connection, 1 community) -> c_intra = 0.95
+
     no_communities = 1
-    c_intra = 0.05 * n 
-    c_inter = 0.05 * n (not used because no_communities = 1)
+    c_intra = 0.95 = n_community * p
+    c_inter = n/a
+    
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 1, c_intra = 0.05, c_inter = 0.05*n)
+    model.assign_community(no_communities = 1, c_intra = 0.95, c_inter = 0)
     return model
 
 def get_model2(n):
     """
-    Returns a model with parameters:
+    model 2 (high connection, 1 community) -> c_intra = 1.05
+
     no_communities = 1
-    c_intra = 0.20 * n 
-    c_inter = 0.20 * n (not used because no_communities = 1)
+    c_intra = 1.05 = n_community * p
+    c_inter = n/a
+ 
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 1, c_intra = 0.2, c_inter = 0.2*n)
+    model.assign_community(no_communities = 1, c_intra = 1.05, c_inter = 0)
     return model  
 
 def get_model3(n):
     """
-    Returns a model with parameters:
+    model 3 (high in, low out) -> c_intra = 1.05, c_inter = 0.5
+
     no_communities = 2
-    c_intra = 0.05 * n 
-    c_inter = 0.05 * n 
+    c_intra = 1.05 = n_community * p
+    c_inter = 0.5 = n_all * p 
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 2, c_intra = 0.2, c_inter = 0.025*n)
+    model.assign_community(no_communities = 2, c_intra = 1.05, c_inter = 0.5)
     return model
 
 def get_model4(n):
     """
-    Returns a model with parameters:
-    no_communities = 1
-    c_intra = 0.05 * n (not used because no_communities = 1)
-    c_inter = 0.05 * n
+    model 4 (high in, high out) -> c_intra = 1.05, c_inter = 0.8
+
+    no_communities = 2
+    c_intra = 1.05 = n_community * p
+    c_inter = 0.8 = n_all * p
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 2, c_intra = 0.2, c_inter = 0.1*n)
+    model.assign_community(no_communities = 2, c_intra = 1.05, c_inter = 0.8)
     return model
 
 

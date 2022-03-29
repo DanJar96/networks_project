@@ -149,7 +149,9 @@ class MJDM:
         
         # Assigning the number of communities
         self.no_communities = no_communities
+        # print(f"self.no_communities : {self.no_communities}")
         self.communities = list(range(1,no_communities+1))
+        # print(f"self.communities : {self.communities}")
         
         # Assign each node to a community
         for node in self.graph.nodes:
@@ -166,12 +168,15 @@ class MJDM:
             for community in self.communities:
                 # Getting nodes that belong to that community
                 nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community]
+                # print(nodes)
                 
                 # Creating potential set of edges
                 potential_edges = list(combinations(nodes,r=2))
                 
                 # Establishing the right community probabilities
-                intra_community_p = c_intra / (len(nodes) - 1)
+                right_c_intra = c_intra * len(nodes)
+                intra_community_p = right_c_intra / len(nodes)
+                # print(intra_community_p)
 
                 # Assigning with c_intra probability nodes within community
                 # and saving these edges for later sampling for disease propagation
@@ -204,23 +209,24 @@ class MJDM:
            w.p. self.p_infection
         """
         self.percolation = percolation
-        # Start by clearing all the edges in the graph from the grapher function.
-        # This is done because of the graphing structure.
-        self.graph.remove_edges_from(list(self.graph.edges()))
-        
             
         # Sampling from our edges that we have, with probability percolation
-        self.graph.add_edges_from(random.sample(list(self.graph.edges),int(self.percolation * len(self.graph.edges))))
+
+        # print(random.sample(list(self.graph.edges),int(self.percolation * len(self.graph.edges))))
+        self.graph.add_edges_from(random.sample(list(self.edges),int(self.percolation * len(self.edges))))
         
         # Identifying what nodes are already infected
         infected_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['infected'] == 1]
+        # print(infected_nodes)
+
         
         # Advancing the old infected nodes by one time period
         for node in infected_nodes:
             self.graph.nodes[node]['time_since_infection'] += 1
             
-            # Passing to recovery period if some have been infected
+            # Passing to recovery period if some have been infected for longer than max time periods
             if self.graph.nodes[node]['time_since_infection'] > self.infection_period:
+
                 # Current state
                 self.graph.nodes[node]['susceptible'] = 0
                 self.graph.nodes[node]['infected'] = 0
@@ -249,17 +255,22 @@ class MJDM:
         
         # Making sure that we discount edges that are already recovered.
         infected_nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['infected'] == 1]
+        # print(infected_nodes)
         
         # Filtering out the new infected nodes
         susceptible_nodes = [node for node in self.graph.nodes if (self.graph.nodes[node]['susceptible'] == 1)\
                                                               and (self.graph.nodes[node]['recovered'] == 0)]
+        # print(susceptible_nodes)
         
         # Infecting edges, remember that we have the probability of infection to account for too!
+        # print(self.graph.edges)
         infecting_edges = [edge for edge in self.graph.edges \
                            if (edge[0] in infected_nodes and edge[1] in susceptible_nodes) \
                            or (edge[1] in infected_nodes and edge[0] in susceptible_nodes) \
-                           and (np.random.uniform(0,1,1) < self.p_infection)
-                                                                  ]
+                           and (np.random.uniform(0,1,1) < self.p_infection)]
+
+        # print(infecting_edges)
+                                                                  
 
         # set infecting node color to different color, and pass this
         new_infected_nodes = []
@@ -460,8 +471,8 @@ def get_model1(n):
     """
     Returns a model with parameters:
     no_communities = 1
-    c_intra = 0.05 * n (not used because no_communities = 1)
-    c_inter = 0.05 * n
+    c_intra = 0.05 * n 
+    c_inter = 0.05 * n (not used because no_communities = 1)
 
     """
     model  = MJDM(n)
@@ -472,24 +483,24 @@ def get_model2(n):
     """
     Returns a model with parameters:
     no_communities = 1
-    c_intra = 0.05 * n (not used because no_communities = 1)
-    c_inter = 0.05 * n
+    c_intra = 0.20 * n 
+    c_inter = 0.20 * n (not used because no_communities = 1)
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 1, c_intra = 0.05, c_inter = 0.05*n)
+    model.assign_community(no_communities = 1, c_intra = 0.2, c_inter = 0.2*n)
     return model  
 
 def get_model3(n):
     """
     Returns a model with parameters:
-    no_communities = 1
-    c_intra = 0.05 * n (not used because no_communities = 1)
-    c_inter = 0.05 * n
+    no_communities = 2
+    c_intra = 0.05 * n 
+    c_inter = 0.05 * n 
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 1, c_intra = 0.2, c_inter = 0.025*n)
+    model.assign_community(no_communities = 2, c_intra = 0.2, c_inter = 0.025*n)
     return model
 
 def get_model4(n):
@@ -564,7 +575,7 @@ def simulation(parameter_combinations,no_simulations,time_periods):
                         break
             
                 tps = len(model.nodehistory['infected'])
-                data_dict['model_number'].extend([model_id] * tps)
+                data_dict['model_number'].extend([model_id+1] * tps)
                 data_dict['parameter_combination'].extend([comb] * tps)
                 data_dict['simulation_number'].extend([run] *tps)
                 data_dict['time_period'] += list(range(tps))

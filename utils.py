@@ -468,56 +468,56 @@ def to_gif():
 
 def get_model1(n):
     """
-    model 1 (low connection, 1 community) -> c_intra = 0.95
+    model 1 (low connection, 1 community) -> c_intra = 0.99
 
     no_communities = 1
-    c_intra = 0.95 = n_community * p
+    c_intra = 0.99 = n_community * p
     c_inter = n/a
     
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 1, c_intra = 0.95, c_inter = 0)
+    model.assign_community(no_communities = 1, c_intra = 0.99, c_inter = 0)
     return model
 
 def get_model2(n):
     """
-    model 2 (high connection, 1 community) -> c_intra = 1.05
+    model 2 (high connection, 1 community) -> c_intra = 5
 
     no_communities = 1
-    c_intra = 1.05 = n_community * p
+    c_intra = 5 = n_community * p
     c_inter = n/a
  
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 1, c_intra = 1.05, c_inter = 0)
+    model.assign_community(no_communities = 1, c_intra = 5, c_inter = 0)
     return model  
 
 def get_model3(n):
     """
-    model 3 (high in, low out) -> c_intra = 1.05, c_inter = 0.5
+    model 3 (high in, low out) -> c_intra = 5, c_inter = 0.5
 
     no_communities = 2
-    c_intra = 1.05 = n_community * p
+    c_intra = 5 = n_community * p
     c_inter = 0.5 = n_all * p 
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 2, c_intra = 1.05, c_inter = 0.5)
+    model.assign_community(no_communities = 2, c_intra = 5, c_inter = 0.5)
     return model
 
 def get_model4(n):
     """
-    model 4 (high in, high out) -> c_intra = 1.05, c_inter = 0.8
+    model 4 (high in, high out) -> c_intra = 5, c_inter = 0.8
 
     no_communities = 2
-    c_intra = 1.05 = n_community * p
+    c_intra = 5 = n_community * p
     c_inter = 0.8 = n_all * p
 
     """
     model  = MJDM(n)
-    model.assign_community(no_communities = 2, c_intra = 1.05, c_inter = 0.8)
+    model.assign_community(no_communities = 2, c_intra = 5, c_inter = 0.9)
     return model
 
 

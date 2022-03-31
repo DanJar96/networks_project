@@ -114,7 +114,7 @@ class MJDM:
         
         # Infecting the nodes
         for node in infected_nodes:
-            # Current state
+            # Current state logging
             self.graph.nodes[node]['susceptible'] = 0
             self.graph.nodes[node]['infected'] = 1
             self.graph.nodes[node]['recovered'] = 0
@@ -150,12 +150,15 @@ class MJDM:
         # Assigning the number of communities
         self.no_communities = no_communities
         # print(f"self.no_communities : {self.no_communities}")
+
+        # Assinging the community numbers
         self.communities = list(range(1,no_communities+1))
         # print(f"self.communities : {self.communities}")
         
         # Assign each node to a community
         for node in self.graph.nodes:
-            # Sample a number from the list of communities
+
+            # Sample a number from the list of communities for each node
             self.graph.nodes[node]['community'] = int(random.sample(self.communities,1)[0])
     
         # If we have not yet initialized any community edges, do so now.
@@ -164,8 +167,9 @@ class MJDM:
             # Accounting..
             self.edge_initialization_flag = 1
 
-            # Creating INTRA-COMMUNITY, create community structure
+            # Creating INTRA-COMMUNITY edges
             for community in self.communities:
+
                 # Getting nodes that belong to that community
                 nodes = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community]
                 # print(nodes)
@@ -179,14 +183,14 @@ class MJDM:
 
                 # Assigning with c_intra probability nodes within community
                 # and saving these edges for later sampling for disease propagation
-
                 self.edges = [edge for edge in potential_edges if np.random.uniform(0,1,1) < intra_community_p]
 
-
+            # If we have more than 1 community, then we need to use inter-community probability
+            # to assign connections between communities
             if self.no_communities > 1:
                 inter_community_connections = list(combinations(self.communities,r=2))
                 
-                # Creating INTER-COMMUNITY, connect nodes with probability c_inter
+                # Creating INTER-COMMUNITY edges
                 for community_pair in inter_community_connections:
                     nodes_1 = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community_pair[0]]
                     nodes_2 = [node for node in self.graph.nodes if self.graph.nodes[node]['community'] == community_pair[1]]
@@ -203,14 +207,15 @@ class MJDM:
         This function advances the disease state by 1 time period. 
         In its current form, the function:
         
-        1) Samples a subset of these edges, and activates them.
-        2) Propagates disease along these edges if they are in contact, 
-           w.p. self.p_infection
+        1) Updates S/I/R statuses of existing nodes.
+        2) Infects new nodes through edges that are active after percolation
+        3) Does accounting of all disease states of each node for further analysis.
         """
+
+        # Assigning percolation probability to model
         self.percolation = percolation
             
         # Sampling from our edges that we have, with probability percolation
-
         # print(random.sample(list(self.graph.edges),int(self.percolation * len(self.graph.edges))))
         self.graph.add_edges_from(random.sample(list(self.edges),int(self.percolation * len(self.edges))))
         
@@ -308,9 +313,11 @@ class MJDM:
         """
         This function takes the nodes of a graph, and creates a fixed layout so that
         it is easier to see how the disease is propagating in a collection of 
-        communities in a village!
+        communities in a village! This function needs to be called 
+        before calling the graphing function, otherwise the produced graphs will
+        all different node positions and it will be difficult to see what nodes 
+        infect what other nodes.
         """
-        
         
         connections_list = []
         for community in self.communities:
@@ -438,6 +445,9 @@ class MJDM:
 
 
 def to_gif():
+    """
+    Does what it says and says what it does.
+    """
 
     images = []
     path = os.path.join(os.getcwd(),'for_gif/')
@@ -509,11 +519,11 @@ def get_model3(n):
 
 def get_model4(n):
     """
-    model 4 (high in, high out) -> c_intra = 5, c_inter = 0.8
+    model 4 (high in, high out) -> c_intra = 5, c_inter = 0.9
 
     no_communities = 2
     c_intra = 5 = n_community * p
-    c_inter = 0.8 = n_all * p
+    c_inter = 0.9 = n_all * p
 
     """
     model  = MJDM(n)
@@ -572,13 +582,15 @@ def simulation(parameter_combinations,no_simulations,time_periods):
                 model.infect(p_infection = comb[0+1],\
                              no_infected = comb[1+1],\
                              infection_period = comb[2+1],\
-                             recovery_period = comb[3+1])           
-            
+                             recovery_period = comb[3+1])    
+
+                # Propagating the disease, stopping if disease over.
                 for t in range(time_periods):
                     infecting_edges = model.advance_disease(percolation = comb[4+1])
                     if (len(infecting_edges) == 0) & (model.nodehistory['infected'][-1] == 0):
                         break
-            
+
+                # Recording what happened during the run.
                 tps = len(model.nodehistory['infected'])
                 data_dict['model_number'].extend([model_id+1] * tps)
                 data_dict['parameter_combination'].extend([comb] * tps)
